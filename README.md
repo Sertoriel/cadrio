@@ -1,130 +1,94 @@
-CADRio - Sistema de Agendamento
+# CADRio - Sistema de Agendamento
 
-Descrição do Projeto
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 
-Este projeto é uma aplicação web desenvolvida em React com TypeScript, utilizando Vite como ferramenta de build e Tailwind CSS para estilização. O objetivo principal é fornecer um formulário de agendamento intuitivo e em etapas para o Cadastro Único (CADRio) do município do Rio de Janeiro. A aplicação coleta dados pessoais do usuário e permite o agendamento de atendimentos em unidades específicas, com validações em tempo real e uma interface responsiva e moderna.
+Aplicação web para agendamento no Cadastro Único (CADRio) do município do Rio de Janeiro, com formulário em etapas, validações em tempo real e interface responsiva.
 
-Funcionalidades
+## ✨ Funcionalidades
 
-•
-Formulário de Agendamento em Etapas: Guia o usuário por um processo de agendamento dividido em seções lógicas (Dados Pessoais, Agendamento, Confirmação).
+- **Formulário em Etapas**  
+  Processo de agendamento dividido em seções lógicas (Dados Pessoais, Agendamento, Confirmação)
 
-•
-Validação de Dados em Tempo Real: Inclui validações para CPF, nome, telefone e outros campos, com feedback visual imediato.
+- **Validação Inteligente**  
+  Verificação em tempo real de CPF, telefone e outros campos com feedback visual
 
-•
-Formatação Automática de Campos: Formata CPF e números de telefone conforme o usuário digita.
+- **Formatação Automática**  
+  Máscaras para CPF e telefone durante a digitação
 
-•
-Seleção de Unidades por Bairro: Permite ao usuário selecionar uma unidade de atendimento com base no bairro de moradia, exibindo o endereço da unidade.
+- **Seleção de Unidades**  
+  Busca de unidades por bairro com exibição de endereço
 
-•
-Seleção de Data e Horário: Interface amigável para escolha de datas e horários disponíveis para agendamento.
+- **Agendamento Intuitivo**  
+  Interface amigável para seleção de data e horário disponíveis
 
-•
-Resumo do Agendamento: Exibe um resumo completo dos dados preenchidos antes da confirmação final.
+- **Resumo do Agendamento**  
+  Confirmação com todos os dados preenchidos antes do envio
 
-•
-Design Responsivo: A interface se adapta a diferentes tamanhos de tela, proporcionando uma boa experiência em dispositivos móveis e desktops.
+- **Design Responsivo**  
+  Experiência otimizada para mobile e desktop
 
-•
-Estilização Moderna: Utiliza Tailwind CSS para um design limpo, moderno e com animações sutis.
+## 🛠 Tecnologias
 
-Tecnologias Utilizadas
+- **Frontend:**  
+  React + TypeScript  
+  Vite (Build Tool)  
+  Tailwind CSS (Estilização)  
+  Lucide React (Ícones)
 
-•
-React: Biblioteca JavaScript para construção de interfaces de usuário.
+## 📂 Estrutura do Projeto
 
-•
-TypeScript: Linguagem de programação que adiciona tipagem estática ao JavaScript, melhorando a robustez e manutenibilidade do código.
+```
+├── .gitignore
+├── eslint.config.js
+├── index.html
+├── package.json
+├── postcss.config.js
+├── tailwind.config.js
+├── tsconfig.*
+├── vite.config.ts
+└── src/
+    ├── assets/
+    ├── components/
+    │   ├── CampoInput.tsx
+    │   ├── CampoSelect.tsx
+    │   ├── Footer.tsx
+    │   ├── FormularioAgendamento.tsx
+    │   ├── FormularioEtapas.tsx
+    │   └── Header.tsx
+    ├── App.tsx
+    ├── index.css
+    └── main.tsx
+```
 
-•
-Vite: Ferramenta de build de nova geração para desenvolvimento web, oferecendo um ambiente de desenvolvimento rápido.
+## 🚀 Instalação
 
-•
-Tailwind CSS: Framework CSS utility-first para estilização rápida e eficiente.
+1. Clone o repositório:
+```bash
+git clone https://github.com/seu-usuario/cadrio-agendamento.git
+```
 
-•
-Lucide React: Biblioteca de ícones leves e personalizáveis.
+2. Instale as dependências:
+```bash
+npm install
+```
 
-Estrutura do Projeto
+3. Inicie o servidor de desenvolvimento:
+```bash
+npm run dev
+```
 
-Plain Text
+4. Para build de produção:
+```bash
+npm run build
+```
 
+## 🤝 Como Contribuir
 
-.gitignore
-eslint.config.js
-index.html
-package.json
-package-lock.json
-postcss.config.js
-tailwind.config.js
-tsconfig.app.json
-tsconfig.json
-tsconfig.node.json
-vite.config.ts
-vite-env.d.ts
-
-src/
-├── assets/
-│   └── react.svg
-├── components/
-│   ├── CampoInput.tsx
-│   ├── CampoSelect.tsx
-│   ├── Footer.tsx
-│   ├── FormularioAgendamento.tsx
-│   ├── FormularioEtapas.tsx
-│   └── Header.tsx
-├── App.tsx
-├── index.css
-└── main.tsx
-
-
-Instalação e Configuração
-
-Para configurar e executar o projeto localmente, siga os passos abaixo:
-
-1.
-Clone o repositório:
-
-2.
-Instale as dependências:
-
-3.
-Execute o servidor de desenvolvimento:
-
-4.
-Build para Produção:
-
-Uso
-
-Após iniciar a aplicação, o usuário será direcionado para o formulário de agendamento. Basta seguir as etapas, preenchendo os dados solicitados e selecionando as opções de agendamento. O formulário guiará o usuário automaticamente para a próxima etapa após a validação bem-sucedida de cada campo.
-
-Contribuição
-
-Contribuições são bem-vindas! Se você deseja contribuir com este projeto, por favor, siga estas diretrizes:
-
-1.
-Faça um fork do repositório.
-
-2.
-Crie uma nova branch para sua feature (git checkout -b feature/sua-feature).
-
-3.
-Faça suas alterações e commit-as (git commit -m 'feat: Adiciona nova feature').
-
-4.
-Envie suas alterações para o repositório remoto (git push origin feature/sua-feature).
-
-5.
-Abra um Pull Request.
-
-Licença
-
-Este projeto está licenciado sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
-
-
-
-
-Desenvolvido por Manus AI
-
+1. Faça um fork do projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/sua-feature`)
+3. Commit suas alterações (`git commit -m 'feat: Minha nova feature'`)
+4. Push para a branch (`git push origin feature/sua-feature`)
+5. Abra um Pull Request
