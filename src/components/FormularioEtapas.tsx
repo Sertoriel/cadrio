@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import CampoInput from './CampoInput';
 import CampoSelect from './CampoSelect';
-import { AlertCircle, Calendar, Clock, MapPin } from 'lucide-react';
+import { Calendar, Clock, MapPin } from 'lucide-react';
 
 const FormularioEtapas: React.FC = () => {
   const [currentStage, setCurrentStage] = useState(0);
@@ -17,7 +17,7 @@ const FormularioEtapas: React.FC = () => {
     horario: ''
   });
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-
+// Campo de dados Pre-set📲
   const bairros = [
     'Abolição', 'Acari', 'Água Santa', 'Alto da Boa Vista', 'Anchieta', 'Andaraí', 'Anil',
     'Bairro Imperial de São Cristóvão', 'Bancários', 'Bangu', 'Barra da Tijuca', 'Barra de Guaratiba',
@@ -66,6 +66,7 @@ const FormularioEtapas: React.FC = () => {
     '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
   ];
 
+  // Data Validation and Stage Management Logic⚙️
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -73,7 +74,12 @@ const FormularioEtapas: React.FC = () => {
     }));
 
     // Limpar erro quando o usuário inicia
-    if (errors[field]) {
+    if (!isFieldValid(field, value)) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: `O campo ${field} é inválido.`
+      }));
+    } else{
       setErrors(prev => ({
         ...prev,
         [field]: ''
@@ -210,6 +216,7 @@ const FormularioEtapas: React.FC = () => {
     return currentStage >= stage;
   };
 
+  // Page Components📖
   return (
     <div className="space-y-8">
       <div className="text-center mb-8">

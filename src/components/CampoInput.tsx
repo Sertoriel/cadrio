@@ -1,4 +1,4 @@
- import React from 'react';
+import React from 'react';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 
 interface CampoInputProps {
@@ -28,7 +28,7 @@ const CampoInput: React.FC<CampoInputProps> = ({
 
   const isValid = value && !error && value.length > 0;
   const hasError = error && error.length > 0;
-  const isEmpty = !value || value.trim().length === 0;
+  // const isEmpty = !value || value.trim().length === 0;
 
   return (
     <div className="space-y-2 animate-fadeIn">
