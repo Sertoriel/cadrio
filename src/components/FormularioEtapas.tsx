@@ -1,11 +1,30 @@
-import React, { useState } from 'react';
+// src/components/FormularioEtapas.tsx
+import React, { useState, useEffect } from 'react';
 import CampoInput from './CampoInput';
 import CampoSelect from './CampoSelect';
+import AlertBox from './AlertBox';
 import { Calendar, Clock, MapPin } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient, QueryObserverResult } from '@tanstack/react-query';
+import api from '../api/axios';
+
+type FormDataType = {
+  cpf: string;
+  nome: string;
+  celular: string;
+  telefone: string;
+  tipo: string;
+  bairro: string;
+  unidade: string;
+  data: string;
+  horario: string;
+};
+
+type Unidade = { value: string; label: string; endereco: string };
+type AgendamentoResponse = { message?: string; nome?: string;[k: string]: any };
 
 const FormularioEtapas: React.FC = () => {
-  const [currentStage, setCurrentStage] = useState(0);
-  const [formData, setFormData] = useState({
+  const [currentStage, setCurrentStage] = useState<number>(0);
+  const [formData, setFormData] = useState<FormDataType>({
     cpf: '',
     nome: '',
     celular: '',
@@ -16,9 +35,18 @@ const FormularioEtapas: React.FC = () => {
     data: '',
     horario: ''
   });
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
-// Campo de dados Pre-set📲
-  const bairros = [
+
+  const [errors, setErrors] = useState<{ [k: string]: string }>({});
+  const [cpfAPIResult, setCpfAPIResult] = useState<string>('');
+  const [submitResult, setSubmitResult] = useState<string | null>(null);
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<string>('');
+  const [alertVariant, setAlertVariant] = useState<'info' | 'success' | 'error'>('info');
+
+  const queryClient = useQueryClient();
+
+  // fallbacks
+  const fallbackBairros: string[] = [
     'Abolição', 'Acari', 'Água Santa', 'Alto da Boa Vista', 'Anchieta', 'Andaraí', 'Anil',
     'Bairro Imperial de São Cristóvão', 'Bancários', 'Bangu', 'Barra da Tijuca', 'Barra de Guaratiba',
     'Barros Filho', 'Benfica', 'Bento Ribeiro', 'Bonsucesso', 'Botafogo', 'Brás de Pina',
@@ -28,73 +56,112 @@ const FormularioEtapas: React.FC = () => {
     'Méier', 'Penha', 'Realengo', 'Santa Cruz', 'São Conrado', 'Recreio dos Bandeirantes'
   ];
 
-  const tiposAtendimento = [
+  const fallbackTipos = [
     { value: 'Criação', label: 'Novo Cadastro' },
     { value: 'Atualização', label: 'Atualização Cadastral' }
   ];
 
-  const unidadesPorBairro: {[key: string]: Array<{value: string, label: string, endereco: string}>} = {
-    'Centro': [
-      { value: 'cras-centro', label: 'CRAS Centro', endereco: 'Rua da Assembleia, 10 - Centro' },
-      { value: 'cras-lapa', label: 'CRAS Lapa', endereco: 'Rua do Riachuelo, 27 - Lapa' }
-    ],
-    'Copacabana': [
-      { value: 'cras-copacabana', label: 'CRAS Copacabana', endereco: 'Av. Nossa Senhora de Copacabana, 1234' }
-    ],
-    'Tijuca': [
-      { value: 'cras-tijuca', label: 'CRAS Tijuca', endereco: 'Rua Conde de Bonfim, 455 - Tijuca' }
-    ],
-    'Bangu': [
-      { value: 'cras-bangu', label: 'CRAS Bangu', endereco: 'Rua Fonseca, 240 - Bangu' }
-    ],
-    'Campo Grande': [
-      { value: 'cras-campo-grande', label: 'CRAS Campo Grande', endereco: 'Estrada do Mendanha, 1200 - Campo Grande' }
-    ],
-    'Barra da Tijuca': [
-      { value: 'cras-barra', label: 'CRAS Barra da Tijuca', endereco: 'Av. das Américas, 3434 - Barra da Tijuca' }
-    ]
-  };
-
-  const datasDisponiveis = [
+  const fallbackDatas = [
     '2025-08-10', '2025-08-11', '2025-08-12', '2025-08-13', '2025-08-14',
     '2025-08-17', '2025-08-18', '2025-08-19', '2025-08-20', '2025-08-21',
     '2025-08-24', '2025-08-25', '2025-08-26', '2025-08-27', '2025-08-28'
   ];
 
-  const horariosDisponiveis = [
+  const fallbackHorarios = [
     '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
     '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
   ];
 
-  // Data Validation and Stage Management Logic⚙️
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  // Queries (objeto-style, compatível com várias versões do tanstack)
+  const bairrosQuery = useQuery<string[]>({
+    queryKey: ['bairros'],
+    queryFn: async () => {
+      const { data } = await api.get('/bairros');
+      return data;
+    },
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+    initialData: fallbackBairros
+  });
 
-    // Limpar erro quando o usuário inicia
-    if (!isFieldValid(field, value)) {
-      setErrors(prev => ({
-        ...prev,
-        [field]: `O campo ${field} é inválido.`
-      }));
-    } else{
-      setErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
-    }
+  const unidadesQuery = useQuery<Unidade[]>({
+    queryKey: ['unidades', formData.bairro],
+    queryFn: async () => {
+      const { data } = await api.get('/unidades', { params: { bairro: formData.bairro } });
+      return data;
+    },
+    enabled: !!formData.bairro,
+    staleTime: 1000 * 60,
+    retry: 1
+  });
 
-    // Avance automaticamente para o próximo estágio quando o campo for válido
-    if (isFieldValid(field, value)) {
-      const nextStage = getNextStage(field);
-      if (nextStage > currentStage) {
-        setTimeout(() => setCurrentStage(nextStage), 300);
-      }
-    }
+  const datasQuery = useQuery<string[]>({
+    queryKey: ['datas', formData.unidade],
+    queryFn: async () => {
+      const { data } = await api.get('/datas', { params: { unidade: formData.unidade } });
+      return data;
+    },
+    enabled: !!formData.unidade,
+    staleTime: 1000 * 60,
+    retry: 1,
+    initialData: fallbackDatas
+  });
+
+  const horariosQuery = useQuery<string[]>({
+    queryKey: ['horarios', formData.unidade, formData.data],
+    queryFn: async () => {
+      const { data } = await api.get('/horarios', { params: { unidade: formData.unidade, data: formData.data } });
+      return data;
+    },
+    enabled: !!formData.unidade && !!formData.data,
+    staleTime: 1000 * 60,
+    retry: 1,
+    initialData: fallbackHorarios
+  });
+
+  // GET /agendamento/{cpf} (manual)
+  const agendamentoQuery = useQuery<AgendamentoResponse>({
+    queryKey: ['agendamento', formData.cpf],
+    queryFn: async () => {
+      const { data } = await api.get(`/agendamento/${formData.cpf}`);
+      return data;
+    },
+    enabled: false,
+    retry: false
+  });
+
+  // Mutation POST /agendamento
+  const createAgendamento = async (payload: FormDataType): Promise<AgendamentoResponse> => {
+    const { data } = await api.post('/agendamento', payload);
+    return data;
   };
 
+  const mutation = useMutation<AgendamentoResponse, unknown, FormDataType>({
+    mutationFn: createAgendamento,
+    onSuccess: (data) => {
+      setSubmitResult(data?.message ?? 'Agendamento confirmado.');
+      // invalida queries relacionadas (objeto-style)
+      queryClient.invalidateQueries({ queryKey: ['agendamento'] });
+    },
+    onError: (err: any) => {
+      if (err?.response?.status === 422 && err.response.data?.errors) {
+        const apiErrors = err.response.data.errors;
+        const mapped: { [k: string]: string } = {};
+        for (const key in apiErrors) {
+          if (Array.isArray(apiErrors[key]) && apiErrors[key].length) {
+            mapped[key] = apiErrors[key][0];
+          } else {
+            mapped[key] = String(apiErrors[key]);
+          }
+        }
+        setErrors(prev => ({ ...prev, ...mapped }));
+      } else {
+        setSubmitResult('Erro ao enviar. Tente novamente mais tarde.');
+      }
+    }
+  });
+
+  // ---------------- helpers (format/validate)
   const formatCPF = (value: string) => {
     const numbers = value.replace(/\D/g, '');
     if (numbers.length <= 11) {
@@ -116,40 +183,24 @@ const FormularioEtapas: React.FC = () => {
   const validateCPF = (cpf: string) => {
     const numbers = cpf.replace(/\D/g, '');
     if (numbers.length !== 11) return false;
-    
-    // Verificar se todos os dígitos são iguais
     if (/^(\d)\1{10}$/.test(numbers)) return false;
-    
-    // Validação básica do CPF
     let sum = 0;
-    for (let i = 0; i < 9; i++) {
-      sum += parseInt(numbers.charAt(i)) * (10 - i);
-    }
+    for (let i = 0; i < 9; i++) sum += parseInt(numbers.charAt(i)) * (10 - i);
     let remainder = (sum * 10) % 11;
     if (remainder === 10 || remainder === 11) remainder = 0;
     if (remainder !== parseInt(numbers.charAt(9))) return false;
-    
     sum = 0;
-    for (let i = 0; i < 10; i++) {
-      sum += parseInt(numbers.charAt(i)) * (11 - i);
-    }
+    for (let i = 0; i < 10; i++) sum += parseInt(numbers.charAt(i)) * (11 - i);
     remainder = (sum * 10) % 11;
     if (remainder === 10 || remainder === 11) remainder = 0;
     if (remainder !== parseInt(numbers.charAt(10))) return false;
-    
     return true;
   };
 
   const validatePhone = (phone: string, isRequired: boolean = true) => {
     if (!isRequired && !phone.trim()) return true;
-    
     const numbers = phone.replace(/\D/g, '');
-    
-    // Deve começar com 21 (código do Rio)
     if (!numbers.startsWith('21')) return false;
-    
-    // Celular: 11 dígitos (21 + 9 + 8 dígitos)
-    // Fixo: 10 dígitos (21 + 8 dígitos)
     return numbers.length === 11 || numbers.length === 10;
   };
 
@@ -175,7 +226,7 @@ const FormularioEtapas: React.FC = () => {
   };
 
   const getNextStage = (field: string) => {
-    const stageMap: {[key: string]: number} = {
+    const stageMap: { [key: string]: number } = {
       'cpf': 1,
       'nome': 2,
       'celular': 3,
@@ -186,11 +237,11 @@ const FormularioEtapas: React.FC = () => {
       'data': 8,
       'horario': 9
     };
-    return stageMap[field] || currentStage;
+    return stageMap[field] ?? currentStage;
   };
 
-  const getUnidadesDisponiveis = () => {
-    return unidadesPorBairro[formData.bairro] || [
+  const getUnidadesDisponiveis = (): Unidade[] => {
+    return unidadesQuery.data ?? [
       { value: 'cras-generico', label: 'CRAS - Unidade Local', endereco: `Unidade de atendimento no bairro ${formData.bairro}` }
     ];
   };
@@ -204,54 +255,144 @@ const FormularioEtapas: React.FC = () => {
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
     const date = new Date(dateString + 'T00:00:00');
-    return date.toLocaleDateString('pt-BR', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   };
 
-  const canShowStage = (stage: number) => {
-    return currentStage >= stage;
+  const canShowStage = (stage: number) => currentStage >= stage;
+
+  // handlers
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => ({ ...prev, [field]: '' }));
+
+    if (isFieldValid(field, value)) {
+      const nextStage = getNextStage(field);
+      if (nextStage > currentStage) {
+        setTimeout(() => setCurrentStage(nextStage), 300);
+      }
+    } else {
+      if (value && value.length > 0) {
+        setErrors(prev => ({ ...prev, [field]: `O campo ${field} está inválido.` }));
+      } else {
+        setErrors(prev => ({ ...prev, [field]: '' }));
+      }
+    }
   };
 
-  // Page Components stages📖
+  // onBlur do CPF: valida e refetch manualmente
+  const handleCPFBlur = async () => {
+    setCpfAPIResult('');
+    setAlertVisible(false);
+    setAlertMessage('');
+
+    if (!validateCPF(formData.cpf)) {
+      setErrors(prev => ({ ...prev, cpf: 'CPF inválido' }));
+      return;
+    }
+
+    try {
+      const res: QueryObserverResult<AgendamentoResponse> = await agendamentoQuery.refetch();
+      const data = res?.data ?? agendamentoQuery.data;
+
+      // se API retornou message -> exibe no alerta
+      if (data?.message) {
+        setAlertMessage(data.message);
+        setAlertVariant('info'); // ou ajuste conforme a resposta
+        setAlertVisible(true);
+      }
+
+      // se a API trouxe nome (por ex. quando é atualização), preenche o campo
+      if (data?.nome) {
+        setFormData(prev => ({ ...prev, nome: String(data.nome) }));
+      }
+    } catch (err: any) {
+      // tenta capturar mensagem da API no erro, se existir
+      const apiMsg = err?.response?.data?.message ?? 'Erro ao consultar disponibilidade. Tente novamente.';
+      setAlertMessage(apiMsg);
+      setAlertVariant('error');
+      setAlertVisible(true);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitResult(null);
+
+    const invalidFields: { [k: string]: string } = {};
+    (Object.keys(formData) as Array<keyof FormDataType>).forEach((k) => {
+      if (!isFieldValid(k as string, String(formData[k]))) {
+        invalidFields[k as string] = `Campo ${k} inválido ou obrigatório.`;
+      }
+    });
+
+    if (Object.keys(invalidFields).length) {
+      setErrors(prev => ({ ...prev, ...invalidFields }));
+      const firstInvalid = Object.keys(invalidFields)[0];
+      const nextStage = getNextStage(firstInvalid);
+      setCurrentStage(nextStage);
+      return;
+    }
+
+    mutation.mutate(formData);
+  };
+
+  useEffect(() => {
+    if (agendamentoQuery.data?.message) {
+      setAlertMessage(agendamentoQuery.data.message);
+      setAlertVariant('info');
+      setAlertVisible(true);
+    }
+  }, [agendamentoQuery.data]);
+
+  // mutation loading flag (compatibilidade TS entre versões)
+  const mutationIsLoading = (mutation as any).isLoading ?? false;
+
   return (
     <div className="space-y-8">
       <div className="text-center mb-8">
+        <AlertBox
+          message={alertMessage}
+          variant={alertVariant}
+          onClose={() => setAlertVisible(false)}
+        />
         <h2 className="text-4xl font-bold text-gray-800 mb-3">Agendamento Cadastro Único</h2>
         <h3 className="text-xl text-gray-600 font-medium">O Atendimento é destinado para o município do Rio de Janeiro</h3>
       </div>
 
       <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mb-8"></div>
 
-      {/* Notificação de atenção */}
-
-
-      <form className="space-y-8">
+      <form className="space-y-8" onSubmit={handleSubmit}>
         {/* Dados Pessoais */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
           <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
             <div className="w-2 h-6 bg-blue-600 rounded-full"></div>
             Dados Pessoais
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* CPF - Stage 0 */}
+            {/* CPF */}
             <CampoInput
               label="CPF"
               placeholder="000.000.000-00"
               value={formData.cpf}
               onChange={(value) => handleInputChange('cpf', formatCPF(value))}
+              onBlur={handleCPFBlur}
               error={errors.cpf}
               required
               maxLength={14}
               visible={canShowStage(0)}
               inputMode="numeric"
             />
+            {agendamentoQuery.isFetching && <p className="text-sm text-gray-600">Verificando disponibilidade...</p>}
+            {agendamentoQuery.isError && <p className="text-sm text-red-600">Erro ao consultar disponibilidade.</p>}
+            {cpfAPIResult && <p className="text-sm text-blue-600">{cpfAPIResult}</p>}
 
-            {/* Nome Completo - Stage 1 */}
+            {/* Nome */}
             {canShowStage(1) && (
               <CampoInput
                 label="Nome Completo"
@@ -264,7 +405,7 @@ const FormularioEtapas: React.FC = () => {
               />
             )}
 
-            {/* Celular - Stage 2 */}
+            {/* Celular */}
             {canShowStage(2) && (
               <CampoInput
                 label="Celular"
@@ -279,7 +420,7 @@ const FormularioEtapas: React.FC = () => {
               />
             )}
 
-            {/* Telefone Fixo - Stage 3 */}
+            {/* Telefone */}
             {canShowStage(3) && (
               <CampoInput
                 label="Telefone Fixo (Opcional)"
@@ -292,26 +433,26 @@ const FormularioEtapas: React.FC = () => {
               />
             )}
 
-            {/* Tipo de Atendimento - Stage 4 */}
+            {/* Tipo */}
             {canShowStage(4) && (
               <CampoSelect
                 label="Tipo de Atendimento"
                 value={formData.tipo}
                 onChange={(value) => handleInputChange('tipo', value)}
-                options={tiposAtendimento}
+                options={fallbackTipos}
                 error={errors.tipo}
                 required
                 visible={true}
               />
             )}
 
-            {/* Bairro - Stage 5 */}
+            {/* Bairro */}
             {canShowStage(5) && (
               <CampoSelect
                 label="Bairro de Moradia"
                 value={formData.bairro}
                 onChange={(value) => handleInputChange('bairro', value)}
-                options={bairros.map(bairro => ({ value: bairro, label: bairro }))}
+                options={(bairrosQuery.data || fallbackBairros).map((b: string) => ({ value: b, label: b }))}
                 error={errors.bairro}
                 required
                 visible={true}
@@ -327,24 +468,23 @@ const FormularioEtapas: React.FC = () => {
               <div className="w-2 h-6 bg-green-600 rounded-full"></div>
               Agendamento
             </h3>
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Escolha da Unidade - Stage 6 */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 mb-4">
                   <MapPin className="h-5 w-5 text-blue-600" />
                   <h4 className="text-lg font-semibold text-gray-800">Escolha uma Unidade</h4>
                 </div>
-                
+
                 <CampoSelect
                   label=""
                   value={formData.unidade}
                   onChange={(value) => handleInputChange('unidade', value)}
-                  options={getUnidadesDisponiveis()}
+                  options={(getUnidadesDisponiveis() as Unidade[]).map((u) => ({ value: u.value, label: u.label }))}
                   required
                   visible={true}
                 />
-                
+
                 {formData.unidade && (
                   <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex items-start gap-2">
@@ -358,34 +498,30 @@ const FormularioEtapas: React.FC = () => {
                 )}
               </div>
 
-              {/* Escolha da Data - Stage 7 */}
+              {/* Data */}
               {canShowStage(7) && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <Calendar className="h-5 w-5 text-blue-600" />
                     <h4 className="text-lg font-semibold text-gray-800">Escolha a Data</h4>
                   </div>
-                  
+
                   <div className="grid grid-cols-3 gap-2">
-                    {datasDisponiveis.map((data) => (
+                    {(datasQuery.data || fallbackDatas).map((data) => (
                       <button
                         key={data}
                         type="button"
                         onClick={() => handleInputChange('data', data)}
-                        className={`p-3 text-sm rounded-lg border transition-all duration-200 ${
-                          formData.data === data
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-md'
-                            : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                        }`}
+                        className={`p-3 text-sm rounded-lg border transition-all duration-200 ${formData.data === data
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                          : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                          }`}
                       >
-                        {new Date(data + 'T00:00:00').toLocaleDateString('pt-BR', { 
-                          day: '2-digit', 
-                          month: '2-digit' 
-                        })}
+                        {new Date(data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                       </button>
                     ))}
                   </div>
-                  
+
                   {formData.data && (
                     <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
                       <p className="text-sm text-green-800 font-medium">
@@ -393,45 +529,33 @@ const FormularioEtapas: React.FC = () => {
                       </p>
                     </div>
                   )}
-                  
-                  <div className="flex justify-center gap-4 text-xs text-gray-600">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span>Disponível</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                      <span>Selecionado</span>
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {/* Escolha do Horário - Stage 8 */}
+              {/* Horário */}
               {canShowStage(8) && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <Clock className="h-5 w-5 text-blue-600" />
                     <h4 className="text-lg font-semibold text-gray-800">Escolha o Horário</h4>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2">
-                    {horariosDisponiveis.map((horario) => (
+                    {(horariosQuery.data || fallbackHorarios).map((horario) => (
                       <button
                         key={horario}
                         type="button"
                         onClick={() => handleInputChange('horario', horario)}
-                        className={`p-3 text-sm rounded-lg border transition-all duration-200 ${
-                          formData.horario === horario
-                            ? 'bg-green-600 text-white border-green-600 shadow-md'
-                            : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50'
-                        }`}
+                        className={`p-3 text-sm rounded-lg border transition-all duration-200 ${formData.horario === horario
+                          ? 'bg-green-600 text-white border-green-600 shadow-md'
+                          : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50'
+                          }`}
                       >
                         {horario}
                       </button>
                     ))}
                   </div>
-                  
+
                   {formData.horario && (
                     <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
                       <p className="text-sm text-green-800 font-medium">
@@ -452,7 +576,7 @@ const FormularioEtapas: React.FC = () => {
               <div className="w-2 h-6 bg-purple-600 rounded-full"></div>
               Confirmação do Agendamento
             </h3>
-            
+
             <div className="bg-gray-50 p-6 rounded-lg mb-6">
               <h4 className="font-semibold text-gray-800 mb-4">Resumo do Agendamento:</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -464,20 +588,22 @@ const FormularioEtapas: React.FC = () => {
                 <div><strong>Horário:</strong> {formData.horario}</div>
               </div>
             </div>
-            
+
             <div className="mb-6">
               <div className="bg-gray-100 p-4 rounded-lg inline-block">
                 <p className="text-sm text-gray-600">reCAPTCHA será exibido aqui</p>
               </div>
             </div>
-            
+
             <div className="text-center">
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="bg-gradient-to-r from-green-600 to-green-700 text-white py-4 px-8 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold text-lg"
+                disabled={mutationIsLoading}
               >
-                Confirmar Agendamento
+                {mutationIsLoading ? 'Enviando...' : 'Confirmar Agendamento'}
               </button>
+              {submitResult && <p className="mt-3 text-sm text-green-700">{submitResult}</p>}
             </div>
           </div>
         )}

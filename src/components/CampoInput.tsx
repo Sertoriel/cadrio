@@ -6,6 +6,7 @@ interface CampoInputProps {
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   error?: string;
   required?: boolean;
   maxLength?: number;
@@ -18,6 +19,7 @@ const CampoInput: React.FC<CampoInputProps> = ({
   placeholder,
   value,
   onChange,
+  onBlur,
   error,
   required = false,
   maxLength,
@@ -41,6 +43,7 @@ const CampoInput: React.FC<CampoInputProps> = ({
           inputMode={inputMode}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
           placeholder={placeholder}
           maxLength={maxLength}
           className={`
