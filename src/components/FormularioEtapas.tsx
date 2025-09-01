@@ -216,7 +216,7 @@ const FormularioEtapas: React.FC = () => {
     return currentStage >= stage;
   };
 
-  // Page Components📖
+  // Page Components stages📖
   return (
     <div className="space-y-8">
       <div className="text-center mb-8">
