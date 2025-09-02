@@ -35,11 +35,10 @@ const FormularioEtapas: React.FC = () => {
     data: '',
     horario: ''
   });
-
   const [errors, setErrors] = useState<{ [k: string]: string }>({});
   const [cpfAPIResult, setCpfAPIResult] = useState<string>('');
   const [submitResult, setSubmitResult] = useState<string | null>(null);
-  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertVisible, setAlertVisible] = useState<boolean | undefined>(false);
   const [alertMessage, setAlertMessage] = useState<string>('');
   const [alertVariant, setAlertVariant] = useState<'info' | 'success' | 'error'>('info');
 
@@ -71,6 +70,22 @@ const FormularioEtapas: React.FC = () => {
     '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
     '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
   ];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // Queries (objeto-style, compatível com várias versões do tanstack)
   const bairrosQuery = useQuery<string[]>({
@@ -124,6 +139,7 @@ const FormularioEtapas: React.FC = () => {
     queryKey: ['agendamento', formData.cpf],
     queryFn: async () => {
       const { data } = await api.get(`/agendamento/${formData.cpf}`);
+      console.log('Dados do agendamento:', data);
       return data;
     },
     enabled: false,
@@ -160,6 +176,23 @@ const FormularioEtapas: React.FC = () => {
       }
     }
   });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // ---------------- helpers (format/validate)
   const formatCPF = (value: string) => {
@@ -265,6 +298,10 @@ const FormularioEtapas: React.FC = () => {
 
   const canShowStage = (stage: number) => currentStage >= stage;
 
+
+
+
+
   // handlers
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -284,10 +321,15 @@ const FormularioEtapas: React.FC = () => {
     }
   };
 
+
+
+
+
+
   // onBlur do CPF: valida e refetch manualmente
   const handleCPFBlur = async () => {
     setCpfAPIResult('');
-    setAlertVisible(false);
+    setAlertVisible(true);
     setAlertMessage('');
 
     if (!validateCPF(formData.cpf)) {
@@ -312,7 +354,9 @@ const FormularioEtapas: React.FC = () => {
       }
     } catch (err: any) {
       // tenta capturar mensagem da API no erro, se existir
+      console.error('Erro na requisição:', err.response.data);
       const apiMsg = err?.response?.data?.message ?? 'Erro ao consultar disponibilidade. Tente novamente.';
+      console.log(`API Message: ${apiMsg}`);
       setAlertMessage(apiMsg);
       setAlertVariant('error');
       setAlertVisible(true);
@@ -352,14 +396,19 @@ const FormularioEtapas: React.FC = () => {
   // mutation loading flag (compatibilidade TS entre versões)
   const mutationIsLoading = (mutation as any).isLoading ?? false;
 
+
+
+
+
+
+
+
+
+
+  
   return (
     <div className="space-y-8">
       <div className="text-center mb-8">
-        <AlertBox
-          message={alertMessage}
-          variant={alertVariant}
-          onClose={() => setAlertVisible(false)}
-        />
         <h2 className="text-4xl font-bold text-gray-800 mb-3">Agendamento Cadastro Único</h2>
         <h3 className="text-xl text-gray-600 font-medium">O Atendimento é destinado para o município do Rio de Janeiro</h3>
       </div>
@@ -368,6 +417,12 @@ const FormularioEtapas: React.FC = () => {
 
       <form className="space-y-8" onSubmit={handleSubmit}>
         {/* Dados Pessoais */}
+        <AlertBox
+          visible={alertVisible}
+          message={alertMessage}
+          variant={alertVariant}
+          onClose={() => setAlertVisible(false)}
+        />
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
           <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
             <div className="w-2 h-6 bg-blue-600 rounded-full"></div>
@@ -388,8 +443,6 @@ const FormularioEtapas: React.FC = () => {
               visible={canShowStage(0)}
               inputMode="numeric"
             />
-            {agendamentoQuery.isFetching && <p className="text-sm text-gray-600">Verificando disponibilidade...</p>}
-            {agendamentoQuery.isError && <p className="text-sm text-red-600">Erro ao consultar disponibilidade.</p>}
             {cpfAPIResult && <p className="text-sm text-blue-600">{cpfAPIResult}</p>}
 
             {/* Nome */}

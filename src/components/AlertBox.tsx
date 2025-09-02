@@ -4,6 +4,7 @@ import React from 'react';
 type Variant = 'info' | 'success' | 'error';
 
 interface AlertBoxProps {
+    visible?: boolean;
     message: string;
     variant?: Variant;
     onClose: () => void;
@@ -15,8 +16,10 @@ const variantStyles: Record<Variant, { bg: string; border: string; text: string;
     error: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800', btn: 'text-red-600 hover:bg-red-100' },
 };
 
-const AlertBox: React.FC<AlertBoxProps> = ({ message, variant = 'info', onClose }) => {
+const AlertBox: React.FC<AlertBoxProps> = ({ visible = true, message, variant = 'info', onClose }) => {
     const styles = variantStyles[variant];
+
+    if (!visible) return null;
 
     return (
         <div
