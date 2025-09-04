@@ -328,38 +328,45 @@ const FormularioEtapas: React.FC = () => {
 
   // onBlur do CPF: valida e refetch manualmente
   const handleCPFBlur = async () => {
+    setAlertVisible(false);
     setCpfAPIResult('');
-    setAlertVisible(true);
     setAlertMessage('');
+    console.log('Chegou no onBlur do CPF:', formData.cpf);
 
     if (!validateCPF(formData.cpf)) {
       setErrors(prev => ({ ...prev, cpf: 'CPF inválido' }));
+      console.log('CPF inválido, não faz requisição.');
       return;
     }
 
     try {
-      const res: QueryObserverResult<AgendamentoResponse> = await agendamentoQuery.refetch();
-      const data = res?.data ?? agendamentoQuery.data;
+      // Forçar a query a recarregar e aguardar o resultado
+      const result = await agendamentoQuery.refetch();
 
-      // se API retornou message -> exibe no alerta
-      if (data?.message) {
-        setAlertMessage(data.message);
-        setAlertVariant('info'); // ou ajuste conforme a resposta
-        setAlertVisible(true);
+      // Verificar manualmente se a resposta contém um erro
+      if (result.status === 'error') {
+        throw new Error(result.error?.message || 'Erro ao consultar CPF');
       }
 
-      // se a API trouxe nome (por ex. quando é atualização), preenche o campo
+      const data = result.data;
+      console.log('Resposta da API para o CPF:', data?.message);
+
+      if (data?.message) {
+        setAlertVisible(true);
+        setAlertMessage(data.message);
+        setAlertVariant('info');
+      }
+
       if (data?.nome) {
         setFormData(prev => ({ ...prev, nome: String(data.nome) }));
       }
     } catch (err: any) {
-      // tenta capturar mensagem da API no erro, se existir
-      console.error('Erro na requisição:', err.response.data);
-      const apiMsg = err?.response?.data?.message ?? 'Erro ao consultar disponibilidade. Tente novamente.';
+      console.error('Erro na requisição:', err);
+      const apiMsg = err?.message ?? 'Erro ao consultar disponibilidade. Tente novamente.';
       console.log(`API Message: ${apiMsg}`);
+      setAlertVisible(true);
       setAlertMessage(apiMsg);
       setAlertVariant('error');
-      setAlertVisible(true);
     }
   };
 
@@ -405,7 +412,7 @@ const FormularioEtapas: React.FC = () => {
 
 
 
-  
+
   return (
     <div className="space-y-8">
       <div className="text-center mb-8">
