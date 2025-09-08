@@ -4,7 +4,7 @@ import CampoInput from './CampoInput';
 import CampoSelect from './CampoSelect';
 import AlertBox from './AlertBox';
 import { Calendar, Clock, MapPin } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient, QueryObserverResult } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 
 type FormDataType = {
@@ -19,8 +19,21 @@ type FormDataType = {
   horario: string;
 };
 
-type Unidade = { value: string; label: string; endereco: string };
+
 type AgendamentoResponse = { message?: string; nome?: string;[k: string]: any };
+
+type CrasType = {
+  codigo: string;
+  nome: string;
+  bairro: string;
+};
+
+type CrasResponse = {
+  cras: CrasType[];
+};
+
+
+type Unidade = { value: string; label: string; endereco: string };
 
 const FormularioEtapas: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<number>(0);
@@ -41,6 +54,7 @@ const FormularioEtapas: React.FC = () => {
   const [alertVisible, setAlertVisible] = useState<boolean | undefined>(false);
   const [alertMessage, setAlertMessage] = useState<string>('');
   const [alertVariant, setAlertVariant] = useState<'info' | 'success' | 'error'>('info');
+  const [unidadesCras, setUnidadesCras] = useState<CrasType[]>([]);
 
   const queryClient = useQueryClient();
 
@@ -87,64 +101,49 @@ const FormularioEtapas: React.FC = () => {
 
 
 
-  // Queries (objeto-style, compatível com várias versões do tanstack)
-  const bairrosQuery = useQuery<string[]>({
-    queryKey: ['bairros'],
-    queryFn: async () => {
-      const { data } = await api.get('/bairros');
-      return data;
-    },
-    staleTime: 1000 * 60 * 5,
-    retry: 1,
-    initialData: fallbackBairros
-  });
-
-  const unidadesQuery = useQuery<Unidade[]>({
-    queryKey: ['unidades', formData.bairro],
-    queryFn: async () => {
-      const { data } = await api.get('/unidades', { params: { bairro: formData.bairro } });
-      return data;
-    },
-    enabled: !!formData.bairro,
-    staleTime: 1000 * 60,
-    retry: 1
-  });
-
-  const datasQuery = useQuery<string[]>({
-    queryKey: ['datas', formData.unidade],
-    queryFn: async () => {
-      const { data } = await api.get('/datas', { params: { unidade: formData.unidade } });
-      return data;
-    },
-    enabled: !!formData.unidade,
-    staleTime: 1000 * 60,
-    retry: 1,
-    initialData: fallbackDatas
-  });
-
-  const horariosQuery = useQuery<string[]>({
-    queryKey: ['horarios', formData.unidade, formData.data],
-    queryFn: async () => {
-      const { data } = await api.get('/horarios', { params: { unidade: formData.unidade, data: formData.data } });
-      return data;
-    },
-    enabled: !!formData.unidade && !!formData.data,
-    staleTime: 1000 * 60,
-    retry: 1,
-    initialData: fallbackHorarios
-  });
+  // // Queries (objeto-style, compatível com várias versões do tanstack)
 
   // GET /agendamento/{cpf} (manual)
   const agendamentoQuery = useQuery<AgendamentoResponse>({
     queryKey: ['agendamento', formData.cpf],
     queryFn: async () => {
       const { data } = await api.get(`/agendamento/${formData.cpf}`);
-      console.log('Dados do agendamento:', data);
       return data;
     },
-    enabled: false,
+    enabled: false, // desabilita execução automática
     retry: false
   });
+
+
+  // GET /cras?bairro={bairro} (automático ao mudar o bairro)
+    // MODIFICADO: Removido 'crasData' para usar 'data' diretamente e removido os callbacks
+  const {
+    data, // Usaremos 'data' diretamente agora
+    isLoading: isCrasLoading,
+    isError: isCrasError
+  } = useQuery<CrasResponse>({
+    queryKey: ['cras', formData.bairro],
+    queryFn: async () => {
+      const response = await api.get<CrasResponse>(`/cras/`, { params: { bairro: formData.bairro } });
+      return response.data;
+    },
+    enabled: !!formData.bairro,
+    retry: 1,
+  });
+
+  // NOVO: Hook useEffect para lidar com o sucesso ou erro da busca
+  useEffect(() => {
+    if (data) {
+      // Se a busca for bem-sucedida, atualizamos o estado
+      setUnidadesCras(data?.cras || []);
+    }
+    if (isCrasError) {
+      // Em caso de erro, limpamos a lista
+      setUnidadesCras([]);
+    }
+  }, [data, isCrasError]); // Este efeito roda sempre que 'data' ou 'isCrasError' mudar
+
+
 
   // Mutation POST /agendamento
   const createAgendamento = async (payload: FormDataType): Promise<AgendamentoResponse> => {
@@ -176,7 +175,6 @@ const FormularioEtapas: React.FC = () => {
       }
     }
   });
-
 
 
 
@@ -274,7 +272,7 @@ const FormularioEtapas: React.FC = () => {
   };
 
   const getUnidadesDisponiveis = (): Unidade[] => {
-    return unidadesQuery.data ?? [
+    return [
       { value: 'cras-generico', label: 'CRAS - Unidade Local', endereco: `Unidade de atendimento no bairro ${formData.bairro}` }
     ];
   };
@@ -345,24 +343,44 @@ const FormularioEtapas: React.FC = () => {
 
       // Verificar manualmente se a resposta contém um erro
       if (result.status === 'error') {
-        throw new Error(result.error?.message || 'Erro ao consultar CPF');
+        setAlertVisible(true);
+        setAlertMessage(result.error?.message || 'Olá Usuário, você ainda não possui agendamento');
+        setAlertVariant('info');
       }
 
       const data = result.data;
-      console.log('Resposta da API para o CPF:', data?.message);
+      console.log('Resposta da API para o CPF:', data);
 
+      // Se a API retornou uma mensagem, significa que há um agendamento existente
       if (data?.message) {
         setAlertVisible(true);
         setAlertMessage(data.message);
         setAlertVariant('info');
+
+        // Se houver nome na resposta, preenche automaticamente
+        if (data?.nome) {
+          setFormData(prev => ({ ...prev, nome: String(data.nome) }));
+        }
+
+        // Não avança para a próxima etapa
+        return;
       }
 
-      if (data?.nome) {
-        setFormData(prev => ({ ...prev, nome: String(data.nome) }));
-      }
+      // Se não há mensagem na resposta, avança para a etapa do nome
+      // setCurrentStage(1);
+
     } catch (err: any) {
       console.error('Erro na requisição:', err);
-      const apiMsg = err?.message ?? 'Erro ao consultar disponibilidade. Tente novamente.';
+
+      // Se o erro for 404 (não encontrado), significa que não há agendamento e pode prosseguir
+      if (err.response?.status === 404) {
+        console.log('CPF não possui agendamento - pode prosseguir');
+        setCurrentStage(1); // Avança para a etapa do nome
+        return;
+      }
+
+      // Se for outro tipo de erro, mostra mensagem de erro
+      const apiMsg = err.response?.data?.message || err?.message || 'Erro ao consultar disponibilidade. Tente novamente.';
       console.log(`API Message: ${apiMsg}`);
       setAlertVisible(true);
       setAlertMessage(apiMsg);
@@ -512,7 +530,7 @@ const FormularioEtapas: React.FC = () => {
                 label="Bairro de Moradia"
                 value={formData.bairro}
                 onChange={(value) => handleInputChange('bairro', value)}
-                options={(bairrosQuery.data || fallbackBairros).map((b: string) => ({ value: b, label: b }))}
+                options={(fallbackBairros).map((b: string) => ({ value: b, label: b }))}
                 error={errors.bairro}
                 required
                 visible={true}
@@ -524,39 +542,52 @@ const FormularioEtapas: React.FC = () => {
         {/* Agendamento */}
         {canShowStage(6) && (
           <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-              <div className="w-2 h-6 bg-green-600 rounded-full"></div>
-              Agendamento
-            </h3>
+            {/* ... Título "Agendamento" */}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <MapPin className="h-5 w-5 text-blue-600" />
-                  <h4 className="text-lg font-semibold text-gray-800">Escolha uma Unidade</h4>
-                </div>
+                {/* ... Título "Escolha uma Unidade" */}
 
+                {/* MODIFICADO: CampoSelect de Unidades agora é dinâmico */}
                 <CampoSelect
                   label=""
                   value={formData.unidade}
                   onChange={(value) => handleInputChange('unidade', value)}
-                  options={(getUnidadesDisponiveis() as Unidade[]).map((u) => ({ value: u.value, label: u.label }))}
+                  // Mapeia a lista de CRAS para o formato que o select espera
+                  options={unidadesCras.map((cras) => ({
+                    value: cras.codigo, // Usando o código como valor
+                    label: cras.nome,   // E o nome como rótulo
+                  }))}
                   required
                   visible={true}
+                  // Desabilita o select enquanto as unidades estão sendo carregadas
+                  disabled={isCrasLoading}
                 />
 
+                {/* NOVO: Feedback de carregamento e erro para o usuário */}
+                {isCrasLoading && <p className="text-sm text-gray-500">Carregando unidades...</p>}
+                {isCrasError && <p className="text-sm text-red-500">Erro ao buscar unidades. Tente outro bairro.</p>}
+                {!isCrasLoading && !isCrasError && formData.bairro && unidadesCras.length === 0 && (
+                  <p className="text-sm text-yellow-600">Nenhuma unidade encontrada para este bairro.</p>
+                )}
+
+                {/* MODIFICADO: Lógica para exibir o endereço */}
                 {formData.unidade && (
                   <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex items-start gap-2">
                       <MapPin className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
                       <div>
                         <p className="text-sm font-medium text-blue-800">Endereço:</p>
-                        <p className="text-sm text-blue-700">{getEnderecoUnidade()}</p>
+                        {/* Agora busca o bairro da unidade selecionada */}
+                        <p className="text-sm text-blue-700">
+                          {unidadesCras.find(c => c.codigo === formData.unidade)?.bairro || 'Endereço não disponível'}
+                        </p>
                       </div>
                     </div>
                   </div>
                 )}
               </div>
+
 
               {/* Data */}
               {canShowStage(7) && (
@@ -567,7 +598,7 @@ const FormularioEtapas: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-3 gap-2">
-                    {(datasQuery.data || fallbackDatas).map((data) => (
+                    {(fallbackDatas).map((data) => (
                       <button
                         key={data}
                         type="button"
@@ -601,7 +632,7 @@ const FormularioEtapas: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {(horariosQuery.data || fallbackHorarios).map((horario) => (
+                    {(fallbackHorarios).map((horario) => (
                       <button
                         key={horario}
                         type="button"

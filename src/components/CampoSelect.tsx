@@ -9,6 +9,7 @@ interface CampoSelectProps {
   error?: string;
   required?: boolean;
   visible?: boolean;
+  disabled?: boolean;
 }
 
 const CampoSelect: React.FC<CampoSelectProps> = ({
@@ -18,7 +19,8 @@ const CampoSelect: React.FC<CampoSelectProps> = ({
   options,
   error,
   required = false,
-  visible = true
+  visible = true,
+  disabled = false
 }) => {
   if (!visible) return null;
 
@@ -36,6 +38,7 @@ const CampoSelect: React.FC<CampoSelectProps> = ({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
           className={`
             w-full p-4 border-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-opacity-20 text-gray-800 font-medium appearance-none cursor-pointer
             ${hasError 
