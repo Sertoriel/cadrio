@@ -19,7 +19,6 @@ type FormDataType = {
   horario: string;
 };
 
-
 type AgendamentoResponse = { message?: string; nome?: string;[k: string]: any };
 
 type CrasType = {
@@ -32,6 +31,22 @@ type CrasResponse = {
   cras: CrasType[];
 };
 
+type Vaga = {
+  id: number;
+  data: string;
+  hora: string;
+};
+
+type CrasVagas = {
+  datas: string[];
+  vagas: {
+    [date: string]: Vaga[]; // array de vagas por data
+  };
+};
+
+type DisponibilidadeResponse = {
+  cras_vagas: CrasVagas;
+};
 
 type Unidade = { value: string; label: string; endereco: string };
 
@@ -48,13 +63,16 @@ const FormularioEtapas: React.FC = () => {
     data: '',
     horario: ''
   });
+
   const [errors, setErrors] = useState<{ [k: string]: string }>({});
+
   const [cpfAPIResult, setCpfAPIResult] = useState<string>('');
   const [submitResult, setSubmitResult] = useState<string | null>(null);
   const [alertVisible, setAlertVisible] = useState<boolean | undefined>(false);
   const [alertMessage, setAlertMessage] = useState<string>('');
   const [alertVariant, setAlertVariant] = useState<'info' | 'success' | 'error'>('info');
   const [unidadesCras, setUnidadesCras] = useState<CrasType[]>([]);
+  const [disponibilidade, setDisponibilidade] = useState<CrasVagas>({ datas: [], vagas: {} });
 
   const queryClient = useQueryClient();
 
@@ -74,16 +92,16 @@ const FormularioEtapas: React.FC = () => {
     { value: 'Atualização', label: 'Atualização Cadastral' }
   ];
 
-  const fallbackDatas = [
-    '2025-08-10', '2025-08-11', '2025-08-12', '2025-08-13', '2025-08-14',
-    '2025-08-17', '2025-08-18', '2025-08-19', '2025-08-20', '2025-08-21',
-    '2025-08-24', '2025-08-25', '2025-08-26', '2025-08-27', '2025-08-28'
-  ];
+  // const fallbackDatas = [
+  //   '2025-08-10', '2025-08-11', '2025-08-12', '2025-08-13', '2025-08-14',
+  //   '2025-08-17', '2025-08-18', '2025-08-19', '2025-08-20', '2025-08-21',
+  //   '2025-08-24', '2025-08-25', '2025-08-26', '2025-08-27', '2025-08-28'
+  // ];
 
-  const fallbackHorarios = [
-    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-    '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
-  ];
+  // const fallbackHorarios = [
+  //   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+  //   '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
+  // ];
 
 
 
@@ -116,7 +134,7 @@ const FormularioEtapas: React.FC = () => {
 
 
   // GET /cras?bairro={bairro} (automático ao mudar o bairro)
-    // MODIFICADO: Removido 'crasData' para usar 'data' diretamente e removido os callbacks
+  // MODIFICADO: Removido 'crasData' para usar 'data' diretamente e removido os callbacks
   const {
     data, // Usaremos 'data' diretamente agora
     isLoading: isCrasLoading,
@@ -124,7 +142,7 @@ const FormularioEtapas: React.FC = () => {
   } = useQuery<CrasResponse>({
     queryKey: ['cras', formData.bairro],
     queryFn: async () => {
-      const response = await api.get<CrasResponse>(`/cras/`, { params: { bairro: formData.bairro } });
+      const response = await api.get<CrasResponse>(`/cras/`);
       return response.data;
     },
     enabled: !!formData.bairro,
@@ -142,6 +160,33 @@ const FormularioEtapas: React.FC = () => {
       setUnidadesCras([]);
     }
   }, [data, isCrasError]); // Este efeito roda sempre que 'data' ou 'isCrasError' mudar
+
+
+
+  // NOVO: Query para buscar as datas e vagas com base na unidade selecionada
+  const {
+    data: disponibilidadeData,
+    isLoading: isDisponibilidadeLoading,
+    isError: isDisponibilidadeError,
+  } = useQuery<DisponibilidadeResponse>({
+    queryKey: ['disponibilidade', formData.unidade], // Depende do código da unidade
+    queryFn: async () => {
+      const response = await api.get<DisponibilidadeResponse>(`/disponibilidades/${formData.unidade}`);
+      return response.data;
+    },
+    enabled: !!formData.unidade, // SÓ EXECUTA QUANDO UMA UNIDADE FOR SELECIONADA
+    retry: 1,
+  });
+
+  // NOVO: useEffect para atualizar o estado de disponibilidade
+  useEffect(() => {
+    if (disponibilidadeData) {
+      setDisponibilidade(disponibilidadeData.cras_vagas);
+    } else {
+      // Limpa as disponibilidades se não houver dados (ex: trocou de unidade)
+      setDisponibilidade({ datas: [], vagas: {} });
+    }
+  }, [disponibilidadeData]);
 
 
 
@@ -302,10 +347,23 @@ const FormularioEtapas: React.FC = () => {
 
   // handlers
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    if (field === 'unidade') {
+      setFormData(prev => ({
+        ...prev,
+        unidade: value,
+        data: '',
+        horario: '',
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
+
     setErrors(prev => ({ ...prev, [field]: '' }));
 
     if (isFieldValid(field, value)) {
+      if(field === 'cpf' && validateCPF(value) === true) {
+        handleCPFBlur();
+      }
       const nextStage = getNextStage(field);
       if (nextStage > currentStage) {
         setTimeout(() => setCurrentStage(nextStage), 300);
@@ -597,8 +655,13 @@ const FormularioEtapas: React.FC = () => {
                     <h4 className="text-lg font-semibold text-gray-800">Escolha a Data</h4>
                   </div>
 
+                  {/* Feedback de Carregamento/Erro para as Datas */}
+                  {isDisponibilidadeLoading && <p className="text-sm text-gray-500">Carregando datas disponíveis...</p>}
+                  {isDisponibilidadeError && <p className="text-sm text-red-500">Erro ao buscar datas.</p>}
+
                   <div className="grid grid-cols-3 gap-2">
-                    {(fallbackDatas).map((data) => (
+                    {/* MODIFICADO: Mapeia as datas vindas da API */}
+                    {disponibilidade.datas.map((data) => (
                       <button
                         key={data}
                         type="button"
@@ -632,20 +695,26 @@ const FormularioEtapas: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {(fallbackHorarios).map((horario) => (
+                    {/* MODIFICADO: Mapeia os horários da data selecionada */}
+                    {(disponibilidade.vagas[formData.data] || []).map((vaga) => (
                       <button
-                        key={horario}
+                        key={vaga.id}
                         type="button"
-                        onClick={() => handleInputChange('horario', horario)}
-                        className={`p-3 text-sm rounded-lg border transition-all duration-200 ${formData.horario === horario
+                        onClick={() => handleInputChange('horario', vaga.hora)}
+                        className={`p-3 text-sm rounded-lg border transition-all duration-200 ${formData.horario === vaga.hora
                           ? 'bg-green-600 text-white border-green-600 shadow-md'
                           : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50'
                           }`}
                       >
-                        {horario}
+                        {vaga.hora}
                       </button>
                     ))}
                   </div>
+
+                  {/* Feedback caso não hajam horários para a data selecionada */}
+                  {formData.data && (disponibilidade.vagas[formData.data] || []).length === 0 && !isDisponibilidadeLoading &&
+                    <p className="text-sm text-yellow-600">Nenhum horário disponível para esta data.</p>
+                  }
 
                   {formData.horario && (
                     <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">

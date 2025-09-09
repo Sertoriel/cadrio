@@ -67,7 +67,7 @@ const AlertBox: React.FC<AlertBoxProps> = ({
                 className={`w-full max-w-4xl ${styles.bg} border ${styles.border} rounded-lg p-4 shadow-lg transform transition-all duration-300`}
             >
                 <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 overflow-auto max-h-96">
+                    <div className="flex-1 overflow-auto max-h-96 pr-2">
                         {containsHTML ? (
                             <div className="[&_h4]:text-lg [&_h4]:font-bold [&_h4]:text-blue-700 [&_h4]:mb-3 
                                             [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-3 [&_ul]:text-yellow-600
@@ -78,7 +78,7 @@ const AlertBox: React.FC<AlertBoxProps> = ({
                                 <div dangerouslySetInnerHTML={sanitizedMessage()} />
                             </div>
                         ) : (
-                            <p className={`text-sm font-medium ${styles.text}`}>{message}</p>
+                            <p className={`text-lg font-semibold ${styles.text}`}>{message}</p>
                         )}
                     </div>
 

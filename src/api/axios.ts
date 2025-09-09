@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://54.165.236.137/',
+    baseURL: import.meta.env.VITE_API_URL,
     headers: { 'Content-Type': 'application/json' },
     timeout: 1500,
     validateStatus: function (status) {
