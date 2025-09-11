@@ -6,7 +6,7 @@ interface CampoInputProps {
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
-  onBlur?: () => void;
+  onBlur?: (value: string) => void;
   error?: string;
   required?: boolean;
   maxLength?: number;
@@ -43,15 +43,15 @@ const CampoInput: React.FC<CampoInputProps> = ({
           inputMode={inputMode}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onBlur={onBlur}
+          onBlur={onBlur ? (e) => onBlur(e.target.value) : undefined}
           placeholder={placeholder}
           maxLength={maxLength}
           className={`
             w-full p-4 border-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-opacity-20 text-gray-800 font-medium
-            ${hasError 
-              ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-500' 
-              : isValid 
-                ? 'border-green-400 bg-green-50 focus:border-green-500 focus:ring-green-500' 
+            ${hasError
+              ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-500'
+              : isValid
+                ? 'border-green-400 bg-green-50 focus:border-green-500 focus:ring-green-500'
                 : 'border-gray-300 bg-white focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400'
             }
           `}

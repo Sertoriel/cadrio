@@ -361,9 +361,15 @@ const FormularioEtapas: React.FC = () => {
     setErrors(prev => ({ ...prev, [field]: '' }));
 
     if (isFieldValid(field, value)) {
-      const nextStage = getNextStage(field);
-      if (nextStage > currentStage) {
-        setTimeout(() => setCurrentStage(nextStage), 300);
+      if (currentStage === 0) {
+        handleCPFBlur();
+        setCurrentStage(5);
+      } else {
+
+        const nextStage = getNextStage(field);
+        if (nextStage > currentStage) {
+          setTimeout(() => setCurrentStage(nextStage), 300);
+        }
       }
     } else {
       if (value && value.length > 0) {
@@ -517,7 +523,7 @@ const FormularioEtapas: React.FC = () => {
               placeholder="000.000.000-00"
               value={formData.cpf}
               onChange={(value) => handleInputChange('cpf', formatCPF(value))}
-              onBlur={handleCPFBlur}
+              onBlur={(value) => handleInputChange('cpf', formatCPF(value))}
               error={errors.cpf}
               required
               maxLength={14}
