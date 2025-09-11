@@ -3,7 +3,7 @@ import axios from 'axios';
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL,
     headers: { 'Content-Type': 'application/json' },
-    timeout: 1500,
+    timeout: 2500,
     validateStatus: function (status) {
         // Considera como sucesso apenas os status codes 2xx
         console.log('Status da resposta:', status);

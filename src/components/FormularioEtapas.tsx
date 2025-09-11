@@ -361,9 +361,6 @@ const FormularioEtapas: React.FC = () => {
     setErrors(prev => ({ ...prev, [field]: '' }));
 
     if (isFieldValid(field, value)) {
-      if(field === 'cpf' && validateCPF(value) === true) {
-        handleCPFBlur();
-      }
       const nextStage = getNextStage(field);
       if (nextStage > currentStage) {
         setTimeout(() => setCurrentStage(nextStage), 300);
@@ -397,6 +394,7 @@ const FormularioEtapas: React.FC = () => {
 
     try {
       // Forçar a query a recarregar e aguardar o resultado
+      console.log('Buscando agendamento para o CPF:', formData.cpf);
       const result = await agendamentoQuery.refetch();
 
       // Verificar manualmente se a resposta contém um erro
