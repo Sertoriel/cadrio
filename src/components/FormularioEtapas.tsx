@@ -346,7 +346,7 @@ const FormularioEtapas: React.FC = () => {
 
 
   // handlers
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = async (field: string, value: string) => {
     if (field === 'unidade') {
       setFormData(prev => ({
         ...prev,
@@ -354,19 +354,25 @@ const FormularioEtapas: React.FC = () => {
         data: '',
         horario: '',
       }));
-    } else {
-      setFormData(prev => ({ ...prev, [field]: value }));
     }
 
+    setFormData(prev => ({ ...prev, [field]: value }));
     setErrors(prev => ({ ...prev, [field]: '' }));
 
     if (isFieldValid(field, value)) {
       if (currentStage === 0) {
-        handleCPFBlur();
-        setCurrentStage(5);
-      } else {
-
+        console.log('CPF válido', currentStage, field, value);
+        const deveAvancar = await handleCPFBlur();
+        console.log('Deve avançar após handleCPFBlur?', deveAvancar);
+        if (deveAvancar) {
+          console.log('Após handleCPFBlur');
+          setCurrentStage(5);
+        }
+      } 
+      
+      if (currentStage > 0) {
         const nextStage = getNextStage(field);
+        console.log(`Campo ${value} válido, avançando para etapa ${nextStage}`);
         if (nextStage > currentStage) {
           setTimeout(() => setCurrentStage(nextStage), 300);
         }
@@ -386,7 +392,7 @@ const FormularioEtapas: React.FC = () => {
 
 
   // onBlur do CPF: valida e refetch manualmente
-  const handleCPFBlur = async () => {
+  const handleCPFBlur = async (): Promise<boolean> => {
     setAlertVisible(false);
     setCpfAPIResult('');
     setAlertMessage('');
@@ -395,7 +401,7 @@ const FormularioEtapas: React.FC = () => {
     if (!validateCPF(formData.cpf)) {
       setErrors(prev => ({ ...prev, cpf: 'CPF inválido' }));
       console.log('CPF inválido, não faz requisição.');
-      return;
+      return false;
     }
 
     try {
@@ -418,18 +424,12 @@ const FormularioEtapas: React.FC = () => {
         setAlertVisible(true);
         setAlertMessage(data.message);
         setAlertVariant('info');
-
         // Se houver nome na resposta, preenche automaticamente
         if (data?.nome) {
           setFormData(prev => ({ ...prev, nome: String(data.nome) }));
         }
-
-        // Não avança para a próxima etapa
-        return;
+        return false;
       }
-
-      // Se não há mensagem na resposta, avança para a etapa do nome
-      // setCurrentStage(1);
 
     } catch (err: any) {
       console.error('Erro na requisição:', err);
@@ -438,7 +438,7 @@ const FormularioEtapas: React.FC = () => {
       if (err.response?.status === 404) {
         console.log('CPF não possui agendamento - pode prosseguir');
         setCurrentStage(1); // Avança para a etapa do nome
-        return;
+        return true;
       }
 
       // Se for outro tipo de erro, mostra mensagem de erro
@@ -447,7 +447,9 @@ const FormularioEtapas: React.FC = () => {
       setAlertVisible(true);
       setAlertMessage(apiMsg);
       setAlertVariant('error');
+      return false;
     }
+    return false;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
