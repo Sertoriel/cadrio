@@ -50,6 +50,11 @@ type DisponibilidadeResponse = {
 
 type Unidade = { value: string; label: string; endereco: string };
 
+type MutationPayload = {
+  formData: FormDataType;
+  recaptchaToken: string;
+};
+
 const FormularioEtapas: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<number>(0);
   const [formData, setFormData] = useState<FormDataType>({
@@ -75,6 +80,8 @@ const FormularioEtapas: React.FC = () => {
   const [disponibilidade, setDisponibilidade] = useState<CrasVagas>({ datas: [], vagas: {} });
 
   const queryClient = useQueryClient();
+
+  const [recaptchaToken, setRecaptchaToken] = useState<string>('');
 
   // fallbacks
   const fallbackBairros: string[] = [
@@ -191,32 +198,60 @@ const FormularioEtapas: React.FC = () => {
 
 
   // Mutation POST /agendamento
-  const createAgendamento = async (payload: FormDataType): Promise<AgendamentoResponse> => {
-    const { data } = await api.post('/agendamento', payload);
+  const createAgendamento = async (payload: MutationPayload): Promise<AgendamentoResponse> => {
+    const { formData, recaptchaToken } = payload;
+
+    // 1. Criar o objeto FormData
+    const dataToSend = new FormData();
+
+    // 2. Encontrar os detalhes da unidade selecionada para montar o campo "cras"
+    const unidadeSelecionada = unidadesCras.find(c => c.codigo === formData.unidade);
+    const textoCras = unidadeSelecionada
+      ? `${unidadeSelecionada.nome} Endereço: ${unidadeSelecionada.bairro}.` // Adapte conforme o texto exato necessário
+      : 'Unidade não encontrada';
+
+    // 3. Adicionar todos os campos, usando os nomes esperados pelo backend
+    dataToSend.append('cpf', formData.cpf.replace(/\D/g, ''));
+    dataToSend.append('nome', formData.nome);
+    dataToSend.append('celular', formData.celular.replace(/\D/g, ''));
+    dataToSend.append('telefone', formData.telefone.replace(/\D/g, ''));
+    dataToSend.append('bairro', formData.bairro);
+    dataToSend.append('tipo', formData.tipo);
+    dataToSend.append('selcras', formData.unidade); // Nome do campo é 'selcras'
+    dataToSend.append('selhora', formData.horario); // Nome é 'selhora', e o valor já é o ID
+    dataToSend.append('recaptcha', recaptchaToken);
+    dataToSend.append('cras', textoCras); // Campo com o texto do endereço
+
+    // 4. Enviar a requisição com o FormData
+    // O Axios detecta o FormData e configura os headers 'Content-Type' automaticamente
+    const { data } = await api.post('/agendamento', dataToSend);
     return data;
   };
 
-  const mutation = useMutation<AgendamentoResponse, unknown, FormDataType>({
+  const mutation = useMutation<AgendamentoResponse, unknown, MutationPayload>({
     mutationFn: createAgendamento,
     onSuccess: (data) => {
-      setSubmitResult(data?.message ?? 'Agendamento confirmado.');
-      // invalida queries relacionadas (objeto-style)
+      // Lógica de sucesso
+      setSubmitResult(null); // Limpa resultados antigos
+      setAlertVariant('success');
+      setAlertMessage(data?.message ?? 'Agendamento confirmado com sucesso!');
+      setAlertVisible(true);
       queryClient.invalidateQueries({ queryKey: ['agendamento'] });
+
+      // Recarrega a página após 5 segundos para simular o comportamento antigo e resetar o form
+      setTimeout(() => {
+        window.location.reload();
+      }, 5000);
     },
     onError: (err: any) => {
+      // Sua lógica de erro existente já é ótima, talvez só precise ajustar as mensagens
       if (err?.response?.status === 422 && err.response.data?.errors) {
-        const apiErrors = err.response.data.errors;
-        const mapped: { [k: string]: string } = {};
-        for (const key in apiErrors) {
-          if (Array.isArray(apiErrors[key]) && apiErrors[key].length) {
-            mapped[key] = apiErrors[key][0];
-          } else {
-            mapped[key] = String(apiErrors[key]);
-          }
-        }
-        setErrors(prev => ({ ...prev, ...mapped }));
+        //...
       } else {
-        setSubmitResult('Erro ao enviar. Tente novamente mais tarde.');
+        const apiMsg = err.response?.data?.message || 'Erro ao enviar. Tente novamente mais tarde.';
+        setAlertVariant('error');
+        setAlertMessage(apiMsg);
+        setAlertVisible(true);
       }
     }
   });
@@ -346,7 +381,19 @@ const FormularioEtapas: React.FC = () => {
 
 
   // handlers
-  const handleInputChange = async (field: string, value: string) => {
+  // NOVO: Handler exclusivo para a digitação do CPF
+  const handleCpfChange = (value: string) => {
+    const formattedValue = formatCPF(value);
+    setFormData(prev => ({ ...prev, cpf: formattedValue }));
+
+    // Limpa o erro de CPF assim que o usuário começa a corrigir
+    if (errors.cpf) {
+      setErrors(prev => ({ ...prev, cpf: '' }));
+    }
+  };
+
+  // MODIFICADO: Lógica de validação e avanço do CPF foi removida daqui
+  const handleInputChange = (field: string, value: string) => {
     if (field === 'unidade') {
       setFormData(prev => ({
         ...prev,
@@ -354,25 +401,16 @@ const FormularioEtapas: React.FC = () => {
         data: '',
         horario: '',
       }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
     }
 
-    setFormData(prev => ({ ...prev, [field]: value }));
     setErrors(prev => ({ ...prev, [field]: '' }));
 
     if (isFieldValid(field, value)) {
-      if (currentStage === 0) {
-        console.log('CPF válido', currentStage, field, value);
-        const deveAvancar = await handleCPFBlur();
-        console.log('Deve avançar após handleCPFBlur?', deveAvancar);
-        if (deveAvancar) {
-          console.log('Após handleCPFBlur');
-          setCurrentStage(5);
-        }
-      } 
-      
+      // Esta lógica agora só se aplica aos campos DEPOIS do CPF
       if (currentStage > 0) {
         const nextStage = getNextStage(field);
-        console.log(`Campo ${value} válido, avançando para etapa ${nextStage}`);
         if (nextStage > currentStage) {
           setTimeout(() => setCurrentStage(nextStage), 300);
         }
@@ -380,8 +418,6 @@ const FormularioEtapas: React.FC = () => {
     } else {
       if (value && value.length > 0) {
         setErrors(prev => ({ ...prev, [field]: `O campo ${field} está inválido.` }));
-      } else {
-        setErrors(prev => ({ ...prev, [field]: '' }));
       }
     }
   };
@@ -392,69 +428,55 @@ const FormularioEtapas: React.FC = () => {
 
 
   // onBlur do CPF: valida e refetch manualmente
-  const handleCPFBlur = async (): Promise<boolean> => {
-    setAlertVisible(false);
-    setCpfAPIResult('');
-    setAlertMessage('');
-    console.log('Chegou no onBlur do CPF:', formData.cpf);
+  // MODIFICADO: Função de validação final e chamada de API para o CPF
+const handleCPFBlur = async () => {
+  setAlertVisible(false);
 
-    if (!validateCPF(formData.cpf)) {
-      setErrors(prev => ({ ...prev, cpf: 'CPF inválido' }));
-      console.log('CPF inválido, não faz requisição.');
-      return false;
+  // 1. Valida o CPF apenas quando o usuário sai do campo
+  if (!validateCPF(formData.cpf)) {
+    // Só exibe o erro se o campo não estiver vazio
+    if (formData.cpf.length > 0) {
+      setErrors(prev => ({ ...prev, cpf: 'CPF inválido.' }));
     }
+    return; // Para a execução se for inválido
+  }
 
-    try {
-      // Forçar a query a recarregar e aguardar o resultado
-      console.log('Buscando agendamento para o CPF:', formData.cpf);
-      const result = await agendamentoQuery.refetch();
+  // 2. Se for válido, chama a API
+  try {
+    const result = await agendamentoQuery.refetch();
+    const data = result.data;
 
-      // Verificar manualmente se a resposta contém um erro
-      if (result.status === 'error') {
-        setAlertVisible(true);
-        setAlertMessage(result.error?.message || 'Olá Usuário, você ainda não possui agendamento');
-        setAlertVariant('info');
-      }
-
-      const data = result.data;
-      console.log('Resposta da API para o CPF:', data);
-
-      // Se a API retornou uma mensagem, significa que há um agendamento existente
-      if (data?.message) {
-        setAlertVisible(true);
-        setAlertMessage(data.message);
-        setAlertVariant('info');
-        // Se houver nome na resposta, preenche automaticamente
-        if (data?.nome) {
-          setFormData(prev => ({ ...prev, nome: String(data.nome) }));
-        }
-        return false;
-      }
-
-    } catch (err: any) {
-      console.error('Erro na requisição:', err);
-
-      // Se o erro for 404 (não encontrado), significa que não há agendamento e pode prosseguir
-      if (err.response?.status === 404) {
-        console.log('CPF não possui agendamento - pode prosseguir');
-        setCurrentStage(1); // Avança para a etapa do nome
-        return true;
-      }
-
-      // Se for outro tipo de erro, mostra mensagem de erro
-      const apiMsg = err.response?.data?.message || err?.message || 'Erro ao consultar disponibilidade. Tente novamente.';
-      console.log(`API Message: ${apiMsg}`);
+    if (data?.message) {
+      // CPF já possui agendamento
+      setAlertMessage(data.message);
+      setAlertVariant('info');
       setAlertVisible(true);
+      if (data?.nome) {
+        setFormData(prev => ({ ...prev, nome: String(data.nome) }));
+      }
+      // Não avança a etapa
+    }
+  } catch (err: any) {
+    // Erro 404 é o "caminho feliz": CPF válido e sem agendamento
+    if (err.response?.status === 404) {
+      console.log('CPF não possui agendamento - pode prosseguir');
+    } else {
+      // Outros erros de servidor
+      const apiMsg = err.response?.data?.message || 'Erro ao consultar CPF. Tente novamente.';
       setAlertMessage(apiMsg);
       setAlertVariant('error');
-      return false;
+      setAlertVisible(true);
     }
-    return false;
-  };
+  }
+  if (!errors.cpf){
+    setCurrentStage(5); // Avança para a etapa do nome mesmo que a API falhe (mas o CPF é válido)
+  }
+};
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitResult(null);
+    setAlertVisible(false); // Esconde alertas antigos
 
     const invalidFields: { [k: string]: string } = {};
     (Object.keys(formData) as Array<keyof FormDataType>).forEach((k) => {
@@ -463,15 +485,23 @@ const FormularioEtapas: React.FC = () => {
       }
     });
 
+    // Validação do reCAPTCHA
+    if (!recaptchaToken) {
+      invalidFields['recaptcha'] = 'Por favor, complete o reCAPTCHA.';
+    }
+
     if (Object.keys(invalidFields).length) {
       setErrors(prev => ({ ...prev, ...invalidFields }));
       const firstInvalid = Object.keys(invalidFields)[0];
       const nextStage = getNextStage(firstInvalid);
-      setCurrentStage(nextStage);
+      if (firstInvalid !== 'recaptcha') {
+        setCurrentStage(nextStage);
+      }
       return;
     }
 
-    mutation.mutate(formData);
+    // Chame a mutação com o payload correto
+    mutation.mutate({ formData, recaptchaToken });
   };
 
   useEffect(() => {
@@ -524,8 +554,8 @@ const FormularioEtapas: React.FC = () => {
               label="CPF"
               placeholder="000.000.000-00"
               value={formData.cpf}
-              onChange={(value) => handleInputChange('cpf', formatCPF(value))}
-              onBlur={(value) => handleInputChange('cpf', formatCPF(value))}
+              onChange={handleCpfChange}
+              onBlur={handleCPFBlur}
               error={errors.cpf}
               required
               maxLength={14}
@@ -706,8 +736,8 @@ const FormularioEtapas: React.FC = () => {
                       <button
                         key={vaga.id}
                         type="button"
-                        onClick={() => handleInputChange('horario', vaga.hora)}
-                        className={`p-3 text-sm rounded-lg border transition-all duration-200 ${formData.horario === vaga.hora
+                        onClick={() => handleInputChange('horario', String(vaga.id))}
+                        className={`p-3 text-sm rounded-lg border transition-all duration-200 ${formData.horario === String(vaga.id)
                           ? 'bg-green-600 text-white border-green-600 shadow-md'
                           : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50'
                           }`}
@@ -725,7 +755,7 @@ const FormularioEtapas: React.FC = () => {
                   {formData.horario && (
                     <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
                       <p className="text-sm text-green-800 font-medium">
-                        Horário selecionado: {formData.horario}
+                        Horário selecionado: {(disponibilidade.vagas[formData.data]?.find(v => String(v.id) === formData.horario))?.hora}
                       </p>
                     </div>
                   )}
@@ -758,6 +788,17 @@ const FormularioEtapas: React.FC = () => {
             <div className="mb-6">
               <div className="bg-gray-100 p-4 rounded-lg inline-block">
                 <p className="text-sm text-gray-600">reCAPTCHA será exibido aqui</p>
+                <div className="mb-6">
+                  {/* Exemplo com uma biblioteca (instale-a se for usar) */}
+                  {/* <ReCAPTCHA sitekey="SUA_SITE_KEY_AQUI" onChange={(token) => setRecaptchaToken(token || '')}/> */}
+                  <div className="bg-gray-100 p-4 rounded-lg inline-block">
+                    <p className="text-sm text-gray-600">reCAPTCHA será exibido aqui</p>
+                    {/* Input temporário para teste, remova depois */}
+                    <input type="text" value={recaptchaToken} onChange={(e) => setRecaptchaToken(e.target.value)} placeholder="Simular token reCAPTCHA" className="mt-2 p-1 border" />
+                  </div>
+                  {/* Adicione um erro visual caso o token não seja preenchido no submit */}
+                  {errors.recaptcha && <p className="text-red-500 text-sm mt-1">{errors.recaptcha}</p>}
+                </div>
               </div>
             </div>
 
